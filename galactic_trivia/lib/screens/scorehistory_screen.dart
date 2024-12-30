@@ -16,28 +16,27 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDatabase() async {
-    // Get the path to the database directory
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'quiz_scores.db');
 
-    // Open the database, creating the table if it doesn't exist
     return await openDatabase(
       path,
       version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
+      onCreate: (db, version) {
+        return db.execute(
+          '''
           CREATE TABLE scores(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             score INTEGER NOT NULL,
             totalQuestions INTEGER NOT NULL,
             timestamp TEXT NOT NULL
           )
-        ''');
+          ''',
+        );
       },
     );
   }
 
-  // Insert a new score into the database
   Future<int> insertScore(int score, int totalQuestions) async {
     final db = await database;
     return await db.insert(
@@ -51,46 +50,8 @@ class DatabaseHelper {
     );
   }
 
-  // Retrieve all saved scores
   Future<List<Map<String, dynamic>>> getScores() async {
     final db = await database;
-    return await db.query(
-      'scores',
-      orderBy: 'timestamp DESC',
-    );
-  }
-
-  // Delete a specific score by ID
-  Future<int> deleteScore(int id) async {
-    final db = await database;
-    return await db.delete(
-      'scores',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
-
-  // Delete all scores
-  Future<int> deleteAllScores() async {
-    final db = await database;
-    return await db.delete('scores');
-  }
-
-  // Retrieve the total count of scores
-  Future<int> getScoreCount() async {
-    final db = await database;
-    final result = await db.rawQuery('SELECT COUNT(*) as count FROM scores');
-    return Sqflite.firstIntValue(result) ?? 0;
-  }
-
-  // Retrieve the highest score
-  Future<Map<String, dynamic>?> getHighestScore() async {
-    final db = await database;
-    final result = await db.query(
-      'scores',
-      orderBy: 'score DESC',
-      limit: 1,
-    );
-    return result.isNotEmpty ? result.first : null;
+    return await db.query('scores', orderBy: 'timestamp DESC');
   }
 }

@@ -258,14 +258,16 @@ class PlanetDetailsScreen extends StatelessWidget {
         elevation: 4,
       ),
       body: Container(
+        // Full-screen background setup
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/bg8.jpg'),
-            fit: BoxFit.cover,
+            image: AssetImage(
+                'assets/images/bg08.jpg'), // Ensure file path is correct
+            fit: BoxFit.cover, // Ensures full background coverage
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16.0), // Padding for child widgets
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

@@ -19,51 +19,80 @@ class DatabaseHelper {
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'quiz_scores.db');
-
     return await openDatabase(
       path,
       version: 1,
-      onCreate: (db, version) {
-        return db.execute(
-          'CREATE TABLE scores(id INTEGER PRIMARY KEY AUTOINCREMENT, score INTEGER, totalQuestions INTEGER, timestamp TEXT)',
+      onCreate: (db, version) async {
+        await db.execute(
+          '''
+          CREATE TABLE scores(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            score INTEGER,
+            totalQuestions INTEGER,
+            timestamp TEXT
+          )
+          ''',
         );
       },
     );
   }
 
   Future<int> insertScore(int score, int totalQuestions) async {
-    final db = await database;
-    return await db.insert(
-      'scores',
-      {
-        'score': score,
-        'totalQuestions': totalQuestions,
-        'timestamp': DateTime.now().toIso8601String(),
-      },
-    );
+    try {
+      final db = await database;
+      return await db.insert(
+        'scores',
+        {
+          'score': score,
+          'totalQuestions': totalQuestions,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+    } catch (e) {
+      debugPrint('Error inserting score: $e');
+      return -1;
+    }
   }
 
-  Future<List<Map<String, dynamic>>> getScores() async {
-    final db = await database;
-    return await db.query('scores', orderBy: 'timestamp DESC');
+  Future<List<Map<String, dynamic>>> fetchScores() async {
+    try {
+      final db = await database;
+      return await db.query('scores', orderBy: 'timestamp DESC');
+    } catch (e) {
+      debugPrint('Error fetching scores: $e');
+      return [];
+    }
   }
 }
 
+void main() {
+  runApp(const PlanetQuizApp());
+}
+
 class PlanetQuizApp extends StatelessWidget {
+  const PlanetQuizApp({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Planet Quiz',
       theme: ThemeData(
-        fontFamily: 'Roboto',
         primarySwatch: Colors.deepPurple,
+        fontFamily: 'Arial',
+        textTheme: const TextTheme(
+          titleLarge: TextStyle(
+              fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+          bodyLarge: TextStyle(fontSize: 18, color: Colors.white70),
+        ),
       ),
-      home: PlanetQuizPage(),
+      home: const PlanetQuizPage(),
     );
   }
 }
 
 class PlanetQuizPage extends StatefulWidget {
+  const PlanetQuizPage({Key? key}) : super(key: key);
+
   @override
   _PlanetQuizPageState createState() => _PlanetQuizPageState();
 }
@@ -249,48 +278,30 @@ class _PlanetQuizPageState extends State<PlanetQuizPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Planet Quiz'),
+        title: const Text('Planet Quiz'),
+        centerTitle: true,
       ),
       body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.deepPurple, Colors.blue],
+            colors: [Colors.deepPurple, Colors.purpleAccent],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Planet Quiz',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+        child: Center(
+          child: _currentQuestionIndex < _questions.length
+              ? Quiz(
+                  questionText:
+                      _questions[_currentQuestionIndex]['question'] as String,
+                  answers: _questions[_currentQuestionIndex]['answers']
+                      as List<Map<String, Object>>,
+                  answerQuestion: _answerQuestion,
+                )
+              : Result(
+                  score: _score,
+                  totalQuestions: _questions.length,
                 ),
-              ),
-              Expanded(
-                child: _currentQuestionIndex < _questions.length
-                    ? Quiz(
-                        questionText: _questions[_currentQuestionIndex]
-                            ['question'] as String,
-                        answers: (_questions[_currentQuestionIndex]['answers']
-                            as List<Map<String, Object>>),
-                        answerQuestion: _answerQuestion,
-                      )
-                    : Result(
-                        score: _score,
-                        totalQuestions: _questions.length,
-                      ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -300,55 +311,64 @@ class _PlanetQuizPageState extends State<PlanetQuizPage> {
 class Quiz extends StatelessWidget {
   final String questionText;
   final List<Map<String, Object>> answers;
-  final Function answerQuestion;
+  final Function(int) answerQuestion;
 
-  Quiz(
-      {required this.questionText,
-      required this.answers,
-      required this.answerQuestion});
+  const Quiz({
+    Key? key,
+    required this.questionText,
+    required this.answers,
+    required this.answerQuestion,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Card(
-            color: Colors.white,
-            elevation: 8,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                questionText,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
+          Text(
+            questionText,
+            style: Theme.of(context).textTheme.titleLarge,
+            textAlign: TextAlign.center,
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           ...answers.map((answer) {
-            return Container(
-              width: double.infinity,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: GestureDetector(
+                onTap: () => answerQuestion(answer['score'] as int),
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Colors.deepPurple, Colors.purpleAccent],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 6,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                    borderRadius: BorderRadius.circular(25),
                   ),
-                  backgroundColor: Colors.deepPurple,
-                ),
-                onPressed: () => answerQuestion(answer['score']),
-                child: Text(
-                  answer['text'] as String,
-                  style: TextStyle(fontSize: 18, color: Colors.white),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        answer['text'] as String,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -363,86 +383,124 @@ class Result extends StatelessWidget {
   final int score;
   final int totalQuestions;
 
-  Result({required this.score, required this.totalQuestions});
+  const Result({Key? key, required this.score, required this.totalQuestions})
+      : super(key: key);
 
   void _saveScore(BuildContext context) async {
-    await DatabaseHelper().insertScore(score, totalQuestions);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Score saved successfully!')),
+    final result = await DatabaseHelper().insertScore(score, totalQuestions);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(result > 0 ? 'Success' : 'Error'),
+        content: Text(result > 0
+            ? 'Score saved successfully!'
+            : 'Failed to save the score.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _viewHistory(BuildContext context) async {
+    final scores = await DatabaseHelper().fetchScores();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => HistoryPage(scores: scores),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          'Your Score',
-          style: TextStyle(
-              fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Card(
+        elevation: 12,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        SizedBox(height: 20),
-        Card(
-          color: Colors.white,
-          elevation: 8,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              '$score / $totalQuestions',
-              style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.deepPurple),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-        SizedBox(height: 20),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            backgroundColor: Colors.deepPurple,
-          ),
-          onPressed: () {
-            _saveScore(context);
-          },
-          child: Text(
-            'Save Score',
-            style: TextStyle(fontSize: 18, color: Colors.white),
-          ),
-        ),
-        SizedBox(height: 20),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            backgroundColor: Colors.deepPurple,
-          ),
-          onPressed: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => PlanetQuizApp()),
-            );
-          },
-          child: Text(
-            'Restart Quiz',
-            style: TextStyle(fontSize: 18, color: Colors.white),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Your Score: $score / $totalQuestions',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(color: Colors.black),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => _saveScore(context),
+                style: ElevatedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                  backgroundColor: Colors.purpleAccent,
+                  foregroundColor: Colors.white,
+                  textStyle: const TextStyle(fontSize: 16),
+                ),
+                child: const Text('Save Score'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () => _viewHistory(context),
+                style: ElevatedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  textStyle: const TextStyle(fontSize: 16),
+                ),
+                child: const Text('View History'),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-void main() {
-  runApp(PlanetQuizApp());
+class HistoryPage extends StatelessWidget {
+  final List<Map<String, dynamic>> scores;
+
+  const HistoryPage({Key? key, required this.scores}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Score History'),
+      ),
+      body: ListView.builder(
+        itemCount: scores.length,
+        itemBuilder: (ctx, index) {
+          final score = scores[index];
+          return Card(
+            margin: const EdgeInsets.all(8),
+            child: ListTile(
+              leading: const Icon(Icons.score, color: Colors.deepPurple),
+              title: Text(
+                'Score: ${score['score']} / ${score['totalQuestions']}',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(
+                'Date: ${score['timestamp']}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
